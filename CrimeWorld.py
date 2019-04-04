@@ -31,6 +31,7 @@ class CrimeWorld():
     def new_episode(self):
         # default parameters from Mohler
         self.M = 128                    # world size
+        sz = (self.M,self.M)
         self.dt = 1.0/100.0             # time step
 
         self.w = 1.0/15.0               # repeat victimization time scale
@@ -48,7 +49,6 @@ class CrimeWorld():
         self.P = np.zeros(sz)           # police count (like n)
         self.D = np.zeros(sz)           # deterrence by police presence (like B)
         
-        sz = (self.M,self.M)
         self.B = np.zeros(sz)           # dynamic attractiveness
         self.A0 = A0par*np.ones(sz)     # baseline attractiveness
         self.n = np.zeros(sz)           # burglar count
