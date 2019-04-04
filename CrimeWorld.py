@@ -39,6 +39,15 @@ class CrimeWorld():
         self.theta = 0.56               # crime effect on attractiveness
         A0par = 1.0/30.0                # baseline attractiveness
         
+        # police parameters
+        self.psi = self.theta           # police presence effect on attractiveness
+        self.w2 = self.w                # time decay
+        self.eta2 = self.eta            # neighbor influence (diffusion rate)
+        self.policeX = 0
+        self.policeY = 0
+        self.P = np.zeros(sz)           # police count (like n)
+        self.D = np.zeros(sz)           # deterrence by police presence (like B)
+        
         sz = (self.M,self.M)
         self.B = np.zeros(sz)           # dynamic attractiveness
         self.A0 = A0par*np.ones(sz)     # baseline attractiveness
@@ -46,16 +55,46 @@ class CrimeWorld():
         self.C = np.zeros(sz)           # crime count from last step
         self.totalC = np.zeros(sz)      # running total of crime
     
+    def add_agent(x,y):
+        # TODO: keep vector instead of replacing
+        self.policeX = x % self.M
+        self.policeY = y % self.M
+        self.P[self.policeY,self.policeX] += 1
+    
     # info for agent
     def get_state(self):
-        # return crime stats (also police position(s)?)
-        return self.C
+        # return state (# crimes and position of police, MxMx2)
+        return np.stack((self.C,self.P),2)
     
     # perform action for agent
     # given agent and action?
     def make_action(a):
-        # return reward
-        return 0
+        # remove
+        self.P[self.policeY,self.policeX] -= 1
+        
+        # TODO: add agent index?
+        # up
+        if a == 0:
+            self.policeY = (self.policeY-1)%self.M
+        # right
+        elif a == 1:
+            self.policeX = (self.policeX+1)%self.M
+        # down
+        elif a == 2:
+            self.policeY = (self.policeY+1)%self.M
+        # left
+        elif a == 3:
+            self.policeX = (self.policeX-1)%self.M
+        # do nothing
+#         else:
+        
+        # add in new location
+        self.P[self.policeY,self.policeX] += 1
+        
+        # return reward (inverse of total crime in last iteration)
+        # TODO: for multiple agents, wait until all specified
+        self.update()
+        return 1 / self.C.sum
     
     def actions(agent):
         # return list of actions?
@@ -63,9 +102,13 @@ class CrimeWorld():
         
     # simulate one time step
     def update(self):
+        # update effect of police
+        self.D = self.psi*self.P + (1.0-self.w2*self.dt)*( (1-self.eta2)*self.D
+                                   + (self.eta2/4)*neighborMat(self.D) )
+        
         n_new = np.zeros(self.n.shape)  # temp burglar count
         self.C = np.zeros(self.n.shape) # crime count (E in paper)
-        A = self.A0 + self.B            # total attractiveness
+        A = self.A0 + self.B + self.D   # total attractiveness
 
         # precalculate total neighbor attractiveness for grid
         tA = neighborMat(A)
@@ -124,3 +167,6 @@ class CrimeWorld():
 
         # return # crimes, attractiveness, # burglars
         return self.C, self.B, self.n
+    
+    def is_episode_finished():
+        return False
