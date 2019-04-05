@@ -1,6 +1,6 @@
 import numpy as np
 
-# helper functions
+# helper function
 def neighborMat(A):
     # 4-neighbor sum (edge repeated)
     B = np.zeros(A.shape)
@@ -26,40 +26,62 @@ def neighborMat(A):
 class CrimeWorld():
     # TODO: accept parameter input
     def __init__(self):
+        self.set_params(-1,-1)
         self.new_episode()
-        
-    def new_episode(self):
+    
+    def set_params(self,x,y):
         # default parameters from Mohler
+        # world parameters
         self.M = 128                    # world size
-        sz = (self.M,self.M)
         self.dt = 1.0/100.0             # time step
-
+        
+        # burglar parameters
         self.w = 1.0/15.0               # repeat victimization time scale
         self.gamma = 0.019              # burglar spawn rate
         self.eta = 0.03                 # neighbor influence (diffusion rate)
         self.theta = 0.56               # crime effect on attractiveness
-        A0par = 1.0/30.0                # baseline attractiveness
+        self.A0par = 1.0/30.0           # baseline attractiveness
         
         # police parameters
         self.psi = self.theta           # police presence effect on attractiveness
         self.w2 = self.w                # time decay
         self.eta2 = self.eta            # neighbor influence (diffusion rate)
-        self.policeX = 0
-        self.policeY = 0
-        self.P = np.zeros(sz)           # police count (like n)
-        self.D = np.zeros(sz)           # deterrence by police presence (like B)
+        self.policeX0 = x               # police starting location (when reset)
+        self.policeY0 = y
         
+    def new_episode(self):
+        sz = (self.M,self.M)        
+        # reset world
         self.B = np.zeros(sz)           # dynamic attractiveness
-        self.A0 = A0par*np.ones(sz)     # baseline attractiveness
+        self.A0 = self.A0par*np.ones(sz)# baseline attractiveness
         self.n = np.zeros(sz)           # burglar count
         self.C = np.zeros(sz)           # crime count from last step
         self.totalC = np.zeros(sz)      # running total of crime
+        
+        # police
+        self.policeX = self.policeX0    # police current location
+        self.policeY = self.policeY0
+        self.D = np.zeros(sz)           # deterrence by police presence (like B)
+        self.P = np.zeros(sz)           # police count (like n)
+        if self.policeX > -1:
+            self.P[self.policeY,self.policeX] += 1
+            
     
-    def add_agent(x,y):
+    def add_agent(self,x,y):
         # TODO: keep vector instead of replacing
-        self.policeX = x % self.M
-        self.policeY = y % self.M
+        # set home location
+        self.policeX0 = x % self.M
+        self.policeY0 = y % self.M
+        # update current location
+        self.policeX = self.policeX0
+        self.policeY = self.policeY0
         self.P[self.policeY,self.policeX] += 1
+    
+    def remove_agents(self):
+        # clear all agents
+        self.policeX0 = -1
+        self.policeY0 = -1
+        self.P = np.zeros((self.M,self.M))
     
     # info for agent
     def get_state(self):
@@ -69,7 +91,7 @@ class CrimeWorld():
     # perform action for agent
     # given agent and action?
     def make_action(a):
-        # remove
+        # remove from location
         self.P[self.policeY,self.policeX] -= 1
         
         # TODO: add agent index?
@@ -91,13 +113,13 @@ class CrimeWorld():
         # add in new location
         self.P[self.policeY,self.policeX] += 1
         
-        # return reward (inverse of total crime in last iteration)
+        # return reward (currently negative total crime in last iteration)
         # TODO: for multiple agents, wait until all specified
         self.update()
-        return 1 / self.C.sum
+        return -self.C.sum()
     
     def actions(agent):
-        # return list of actions?
+        # TODO: return list of actions?
         return 0
         
     # simulate one time step
@@ -106,9 +128,9 @@ class CrimeWorld():
         self.D = self.psi*self.P + (1.0-self.w2*self.dt)*( (1-self.eta2)*self.D
                                    + (self.eta2/4)*neighborMat(self.D) )
         
-        n_new = np.zeros(self.n.shape)  # temp burglar count
-        self.C = np.zeros(self.n.shape) # crime count (E in paper)
-        A = self.A0 + self.B + self.D   # total attractiveness
+        n_new = np.zeros(self.n.shape)               # temp burglar count
+        self.C = np.zeros(self.n.shape)              # crime count (E in paper)
+        A = np.maximum(self.A0 + self.B - self.D, 0) # total attractiveness (non-negative)
 
         # precalculate total neighbor attractiveness for grid
         tA = neighborMat(A)
@@ -134,11 +156,7 @@ class CrimeWorld():
 
             # loop through burglars to commit crime or move (faster for small count)
             for criminal in range(np.int(self.n[i,j])):
-                if(p_no_crime[i,j] < np.random.rand()):
-                    # increment crime
-                    self.C[i,j] += 1 
-
-                else:
+                if(np.random.rand() < p_no_crime[i,j]):
                     # move to neighboring cell
                     u = np.random.rand()
                     if(u < p1):
@@ -149,6 +167,10 @@ class CrimeWorld():
                         n_new[i,j3] += 1
                     else:
                         n_new[i,j4] += 1
+                else:
+                    # increment crime
+                    self.C[i,j] += 1
+                    
 
         # criminal count after moving
         self.n = n_new
@@ -166,7 +188,9 @@ class CrimeWorld():
                                    + (self.eta/4)*neighborMat(self.B) )
 
         # return # crimes, attractiveness, # burglars
-        return self.C, self.B, self.n
+        return self.C, self.B, self.n, self.P
     
+    
+    # for A3C
     def is_episode_finished():
         return False
