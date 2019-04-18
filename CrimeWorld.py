@@ -23,11 +23,20 @@ def neighborMat(A):
 
     return B
 
+# center grid on given x,y coord (dim 0 = y)
 def centeredGrid(A,x,y):
     sz = A.shape
     dx = int(sz[1]/2-x)     # floor but returns int type
     dy = int(sz[0]/2-y)
     return np.roll(A,(dy,dx),axis=(0,1))
+
+# return center of matrix based on radius
+def middleMatrix(A,r):
+    sz = A.shape
+    cx = int(sz[1]/2)     # floor but returns int type
+    cy = int(sz[0]/2)
+    return A[cy-r:cy+r+1,cx-r:cx+r+1]
+    
 
 class CrimeWorld():
     # TODO: accept parameter input
@@ -38,7 +47,7 @@ class CrimeWorld():
     def set_params(self,x,y):
         # default parameters from Mohler
         # world parameters
-        self.M = 127                    # world size (odd to allow centering)
+        self.M = 128                    # world size (odd to allow centering)
         self.dt = 1.0/100.0             # time step
         
         # burglar parameters
@@ -65,7 +74,12 @@ class CrimeWorld():
         self.A0 = self.A0par*np.ones(sz)# baseline attractiveness
         self.n = np.zeros(sz)           # burglar count
         self.C = np.zeros(sz)           # crime count from last step
-        self.totalC = np.zeros(sz)      # running total of crime
+        self.totalC = np.zeros(sz)      # running total of crime (windowed)
+        
+        # running sum of crime
+        self.crime_window = 100
+        self.window = 0
+        self.C_buf = np.zeros((sz[0],sz[1],self.crime_window))
         
         # police
         self.policeX = self.policeX0    # police current location
@@ -98,7 +112,8 @@ class CrimeWorld():
 #         return np.stack((self.C,self.P),2)
 
         # return state centered around agent
-        return centeredGrid(selfC,self.policeX,self.policeY)
+#         return centeredGrid(self.C,self.policeX,self.policeY)
+        return centeredGrid(self.totalC,self.policeX,self.policeY)
         
     
     def step(self,a):
@@ -139,9 +154,12 @@ class CrimeWorld():
         # change in C for whole grid
         deltaC = self.C-prevC
         # sum up only local region around agent (current/new location)
-        r = 2 # radius of local region
-        return -deltaC[self.policeY-r:self.policeY+r,
-                       self.policeX-r:self.policeX+r].sum -1
+        # radius of local region
+        r = 5
+#         return -deltaC[self.policeY-r:self.policeY+r,
+#                        self.policeX-r:self.policeX+r].sum() -1
+        reward = -middleMatrix(deltaC,r).sum()-1
+        return reward
     
     def actions(self,agent):
         # TODO: return list of actions?
@@ -199,9 +217,12 @@ class CrimeWorld():
 
         # criminal count after moving
         self.n = n_new
-        # update total crime count
-        self.totalC += self.C
-
+        # update total crime count (minus count dropping out of window)
+        self.totalC += self.C - self.C_buf[:,:,self.window]
+        # update crime window buffer
+        self.C_buf[:,:,self.window] = self.C
+        self.window = (self.window+1)%self.crime_window
+        
         # also add criminals to system
         # 1-D version of n: updates n
         flat_n = self.n.ravel()
