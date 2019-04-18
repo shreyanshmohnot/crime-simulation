@@ -74,6 +74,7 @@ class CrimeWorld():
         self.totalC = data['totalC']
         self.C_buf = data['C_buf']
         self.window = data['window']
+        return self.get_state()
         
     def save_checkpoint(self, file):
         np.savez(file, B=self.B, C=self.C, n=self.n, P=self.P, D=self.D, totalC=self.totalC, C_buf=self.C_buf, window=self.window)  
