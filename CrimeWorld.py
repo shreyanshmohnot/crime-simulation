@@ -23,6 +23,12 @@ def neighborMat(A):
 
     return B
 
+def centeredGrid(A,x,y):
+    sz = A.shape
+    dx = int(sz[1]/2-x)     # floor but returns int type
+    dy = int(sz[0]/2-y)
+    return np.roll(A,(dy,dx),axis=(0,1))
+
 class CrimeWorld():
     # TODO: accept parameter input
     def __init__(self):
@@ -32,7 +38,7 @@ class CrimeWorld():
     def set_params(self,x,y):
         # default parameters from Mohler
         # world parameters
-        self.M = 128                    # world size
+        self.M = 127                    # world size (odd to allow centering)
         self.dt = 1.0/100.0             # time step
         
         # burglar parameters
@@ -48,6 +54,9 @@ class CrimeWorld():
         self.eta2 = self.eta            # neighbor influence (diffusion rate)
         self.policeX0 = x               # police starting location (when reset)
         self.policeY0 = y
+       
+    def reset(self):
+        self.new_episode()
         
     def new_episode(self):
         sz = (self.M,self.M)        
@@ -86,11 +95,19 @@ class CrimeWorld():
     # info for agent
     def get_state(self):
         # return state (# crimes and position of police, MxMx2)
-        return np.stack((self.C,self.P),2)
+#         return np.stack((self.C,self.P),2)
+
+        # return state centered around agent
+        return centeredGrid(selfC,self.policeX,self.policeY)
+        
+    
+    def step(self,a):
+        # returns reward, next state, done)
+        return (self.make_action(a),self.get_state(),False)
     
     # perform action for agent
     # given agent and action?
-    def make_action(a):
+    def make_action(self,a):
         # remove from location
         self.P[self.policeY,self.policeX] -= 1
         
@@ -115,10 +132,18 @@ class CrimeWorld():
         
         # return reward (currently negative total crime in last iteration)
         # TODO: for multiple agents, wait until all specified
+        prevC = self.C
         self.update()
-        return -self.C.sum()
+#         return -self.C.sum()
+        
+        # change in C for whole grid
+        deltaC = self.C-prevC
+        # sum up only local region around agent (current/new location)
+        r = 2 # radius of local region
+        return -deltaC[self.policeY-r:self.policeY+r,
+                       self.policeX-r:self.policeX+r].sum -1
     
-    def actions(agent):
+    def actions(self,agent):
         # TODO: return list of actions?
         return 0
         
@@ -192,5 +217,5 @@ class CrimeWorld():
     
     
     # for A3C
-    def is_episode_finished():
+    def is_episode_finished(self):
         return False
