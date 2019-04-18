@@ -65,7 +65,18 @@ class CrimeWorld():
         self.policeY0 = y
        
     def reset(self):
-        self.new_episode()
+        data = np.load("resultFile.npz")
+        self.B = data['B']
+        self.n = data['n']
+        self.P = data['P']
+        self.C = data['C']
+        self.D = data['D']
+        self.totalC = data['totalC']
+        self.C_buf = data['C_buf']
+        self.window = data['window']
+        
+    def save_checkpoint(self, file):
+        np.savez(file, B=self.B, C=self.C, n=self.n, P=self.P, D=self.D, totalC=self.totalC, C_buf=self.C_buf, window=self.window)  
         
     def new_episode(self):
         sz = (self.M,self.M)        
