@@ -1,4 +1,5 @@
 import numpy as np
+import random
 from CrimeWorld import middleMatrix
 
 def greedy_action(grid,radius=-1):
@@ -8,6 +9,7 @@ def greedy_action(grid,radius=-1):
     if radius > -1:
         grid = middleMatrix(grid,radius)
     
+    # finds max location: if tie, most top-left selected
     ind = np.argmax(grid)
     y,x = np.unravel_index(ind, grid.shape)
     
@@ -50,7 +52,13 @@ def greedy_action(grid,radius=-1):
         return res_y
     
     # otherwise select which neighbor is best
-    if grid[ny,cx] > grid[cy,nx]:
+    test = grid[ny,cx] > grid[cy,nx]
+    if test == 0:
+        if random.random() < 0.5:
+            return res_y
+        else:
+            return res_x
+    elif test > 0:
         return res_y
     else:
         return res_x
